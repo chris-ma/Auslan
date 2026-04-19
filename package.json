@@ -1,0 +1,19 @@
+{
+  "name": "auslan",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check"
+  },
+  "devDependencies": {
+    "turbo": "^2.1.3",
+    "typescript": "^5.5.4"
+  },
+  "packageManager": "pnpm@9.7.1",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
