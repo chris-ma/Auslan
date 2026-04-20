@@ -115,7 +115,7 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
               </span>
             </p>
             <Slider
-              min={0.5}
+              min={0.05}
               max={0.95}
               step={0.05}
               value={[confidenceThreshold]}
@@ -124,6 +124,9 @@ export function SettingsPanel({ open, onOpenChange }: SettingsPanelProps) {
               }
               aria-label="Confidence threshold"
             />
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Lower this if signs aren&apos;t being picked up. Raise it to reduce false positives.
+            </p>
           </div>
         </div>
       </DialogContent>

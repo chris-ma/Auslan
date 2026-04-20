@@ -20,13 +20,20 @@ const WORKER_HEIGHT = 180;
 export function useWorkerRecognition(
   videoRef: React.RefObject<HTMLVideoElement>
 ) {
-  const { status, setStatus, setError, addSubtitle, setFps } =
+  const { status, setStatus, setError, addSubtitle, setFps, confidenceThreshold } =
     useRecognitionStore();
 
   const [lastResult, setLastResult] = useState<LandmarkerResult | null>(null);
 
   const workerRef = useRef<Worker | null>(null);
   const pipelineRef = useRef<RecognitionPipeline | null>(null);
+
+  // Keep the pipeline threshold in sync with the store so live settings changes take effect
+  useEffect(() => {
+    if (pipelineRef.current) {
+      pipelineRef.current.confidenceThreshold = confidenceThreshold;
+    }
+  }, [confidenceThreshold]);
   const rafRef = useRef<number>(0);
   const workerReadyRef = useRef(false);
   const workerBusyRef = useRef(false); // one frame in-flight at a time
@@ -50,6 +57,7 @@ export function useWorkerRecognition(
       // Init pipeline (TF.js models load here)
       if (!pipelineRef.current) {
         pipelineRef.current = new RecognitionPipeline();
+        pipelineRef.current.confidenceThreshold = confidenceThreshold;
         await pipelineRef.current.init();
       }
 

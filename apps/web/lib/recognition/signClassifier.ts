@@ -3,7 +3,7 @@ import "@tensorflow/tfjs-backend-webgl";
 import { SIGN_LABELS, type SignLabel } from "@auslan/vocab";
 
 const MODEL_PATH = "/models/sign-classifier/model.json";
-const CONFIDENCE_THRESHOLD = 0.75;
+const CONFIDENCE_THRESHOLD = 0.3;
 
 let model: tf.LayersModel | null = null;
 let loadPromise: Promise<tf.LayersModel> | null = null;

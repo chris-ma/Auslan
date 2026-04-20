@@ -54,7 +54,7 @@ export const useRecognitionStore = create<RecognitionState>()(
   subtitles: [],
   fps: 0,
   showConfidence: false,
-  confidenceThreshold: 0.75,
+  confidenceThreshold: 0.3,
   fontSize: "md",
   subtitlePosition: "bottom",
   subtitleOpacity: 0.85,
