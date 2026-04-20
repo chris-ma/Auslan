@@ -60,7 +60,7 @@ export async function classify(
 ): Promise<ClassifierResult | null> {
   if (!model) return null;
 
-  return tf.tidy<ClassifierResult | null>(() => {
+  return tf.tidy(() => {
     const input = tf
       .tensor(snapshot, [1, windowSize, featuresPerFrame])
       .toFloat();
@@ -86,7 +86,7 @@ export async function classify(
       displayText: label.replace(/-/g, " "),
       confidence: maxProb,
     };
-  });
+  }) as unknown as ClassifierResult | null;
 }
 
 export function isModelLoaded(): boolean {
