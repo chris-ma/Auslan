@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Square, Trash2, Settings } from "lucide-react";
+import { Play, Square, Trash2, Settings, Camera, CameraOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -22,11 +22,13 @@ interface ControlBarProps {
   fps: number;
   devices: MediaDeviceInfo[];
   activeDeviceId: string | null;
+  cameraActive: boolean;
   onStart: () => void;
   onStop: () => void;
   onClear: () => void;
   onSwitchCamera: (deviceId: string) => void;
   onOpenSettings: () => void;
+  onToggleCamera: () => void;
 }
 
 export function ControlBar({
@@ -34,17 +36,39 @@ export function ControlBar({
   fps,
   devices,
   activeDeviceId,
+  cameraActive,
   onStart,
   onStop,
   onClear,
   onSwitchCamera,
   onOpenSettings,
+  onToggleCamera,
 }: ControlBarProps) {
   const isActive = recognitionStatus === "active";
   const isLoading = recognitionStatus === "loading";
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
+      {/* Camera toggle */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCamera}
+            aria-label={cameraActive ? "Turn camera off" : "Turn camera on"}
+            aria-pressed={cameraActive}
+          >
+            {cameraActive ? (
+              <Camera className="h-4 w-4" aria-hidden />
+            ) : (
+              <CameraOff className="h-4 w-4" aria-hidden />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{cameraActive ? "Turn camera off" : "Turn camera on"}</TooltipContent>
+      </Tooltip>
+
       {/* Recognition toggle */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -52,7 +76,7 @@ export function ControlBar({
             variant={isActive ? "destructive" : "default"}
             size="sm"
             onClick={isActive ? onStop : onStart}
-            disabled={isLoading}
+            disabled={isLoading || (!isActive && !cameraActive)}
             aria-label={isActive ? "Stop recognition" : "Start recognition"}
             aria-pressed={isActive}
           >

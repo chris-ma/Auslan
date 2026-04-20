@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRecognitionStore } from "@/store/recognitionStore";
 import { RecognitionPipeline } from "@/lib/recognition/recognitionPipeline";
 import type { LandmarkerResult } from "@/lib/mediapipe/types";
@@ -22,6 +22,8 @@ export function useWorkerRecognition(
 ) {
   const { status, setStatus, setError, addSubtitle, setFps } =
     useRecognitionStore();
+
+  const [lastResult, setLastResult] = useState<LandmarkerResult | null>(null);
 
   const workerRef = useRef<Worker | null>(null);
   const pipelineRef = useRef<RecognitionPipeline | null>(null);
@@ -127,6 +129,7 @@ export function useWorkerRecognition(
 
         if (e.data.type === "result") {
           workerBusyRef.current = false;
+          setLastResult(e.data.payload);
           const pipelineResult =
             await pipelineRef.current?.processFrame(e.data.payload);
           if (pipelineResult) {
@@ -172,5 +175,5 @@ export function useWorkerRecognition(
     };
   }, []);
 
-  return { status, start, stop };
+  return { status, start, stop, lastResult };
 }

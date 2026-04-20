@@ -2,7 +2,7 @@ import * as tf from "@tensorflow/tfjs";
 import { FEATURES_PER_HAND } from "./normalizer";
 
 const MODEL_PATH = "/models/rest-pose/model.json";
-const REST_THRESHOLD = 0.6;
+const REST_THRESHOLD = 0.3;
 
 let model: tf.LayersModel | null = null;
 let loadPromise: Promise<tf.LayersModel> | null = null;

@@ -7,16 +7,18 @@ import { useRecognitionStore } from "@/store/recognitionStore";
 import { CameraView } from "@/components/camera/CameraView";
 import { CameraPermissionError } from "@/components/camera/CameraPermissionError";
 import { ControlBar } from "@/components/camera/ControlBar";
+import { LandmarkOverlay } from "@/components/camera/LandmarkOverlay";
 import { SettingsPanel } from "@/components/camera/SettingsPanel";
 import { SubtitleBar } from "@/components/subtitles/SubtitleBar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Camera, AlertTriangle, Loader2 } from "lucide-react";
+import { Camera, CameraOff, AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function PracticePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const hasStartedOnce = useRef(false);
 
   const {
     stream,
@@ -25,10 +27,11 @@ export default function PracticePage() {
     status: cameraStatus,
     errorMessage: cameraError,
     startCamera,
+    stopCamera,
     switchCamera,
   } = useCamera();
 
-  const { status: recognitionStatus, start, stop } = useWorkerRecognition(videoRef);
+  const { status: recognitionStatus, start, stop, lastResult } = useWorkerRecognition(videoRef);
 
   const {
     subtitles,
@@ -48,8 +51,21 @@ export default function PracticePage() {
     []
   );
 
+  const cameraActive = cameraStatus === "active" || cameraStatus === "starting";
+
+  if (cameraActive) hasStartedOnce.current = true;
+
+  const handleToggleCamera = useCallback(() => {
+    if (cameraActive) {
+      stop();
+      stopCamera();
+    } else {
+      startCamera();
+    }
+  }, [cameraActive, stop, stopCamera, startCamera]);
+
   // ── Splash: camera not started yet ───────────────────────────────────────
-  if (cameraStatus === "idle") {
+  if (cameraStatus === "idle" && !hasStartedOnce.current) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4">
         <h1 className="text-2xl font-bold">Practice Auslan</h1>
@@ -103,6 +119,15 @@ export default function PracticePage() {
             onVideoRef={handleVideoRef}
           />
 
+          {recognitionStatus === "active" && (
+            <LandmarkOverlay
+              result={lastResult}
+              videoWidth={640}
+              videoHeight={480}
+              mirrored
+            />
+          )}
+
           <SubtitleBar
             subtitles={subtitles}
             fontSize={fontSize}
@@ -110,6 +135,14 @@ export default function PracticePage() {
             opacity={subtitleOpacity}
             showConfidence={showConfidence}
           />
+
+          {/* Camera-off overlay (shown after first use) */}
+          {!cameraActive && hasStartedOnce.current && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80">
+              <CameraOff className="h-10 w-10 text-white/50" aria-hidden />
+              <p className="text-sm text-white/60">Camera off</p>
+            </div>
+          )}
 
           {/* Model loading overlay */}
           {recognitionStatus === "loading" && (
@@ -145,11 +178,13 @@ export default function PracticePage() {
             fps={fps}
             devices={devices}
             activeDeviceId={activeDeviceId}
+            cameraActive={cameraActive}
             onStart={start}
             onStop={stop}
             onClear={clearSubtitles}
             onSwitchCamera={switchCamera}
             onOpenSettings={() => setSettingsOpen(true)}
+            onToggleCamera={handleToggleCamera}
           />
         </div>
 
