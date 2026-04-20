@@ -23,7 +23,7 @@ export class RecognitionPipeline {
   private running = false;
 
   /** Live threshold — update this from the recognition store to take effect immediately. */
-  confidenceThreshold = 0.3;
+  confidenceThreshold = 0.05;
 
   async init(): Promise<void> {
     await Promise.all([loadSignClassifier(), loadRestPoseDetector()]);
