@@ -1,8 +1,9 @@
 /**
  * Rule-based gesture detector using MediaPipe hand landmark geometry.
  *
- * Works by measuring finger extension, thumb orientation, fingertip clustering,
- * and finger curl depth. No training data required.
+ * Detects signs purely from hand shape — no training data required.
+ * Works alongside the ML classifier; fires first when a clear shape is held
+ * for ~133 ms (8 frames at 60 fps).
  *
  * MediaPipe landmark indices (per hand, 21 points):
  *   0=wrist
@@ -17,6 +18,7 @@ import type { HandLandmarks } from "../mediapipe/types";
 import type { SignLabel } from "@auslan/vocab";
 
 type Pt = { x: number; y: number };
+type Pt3 = { x: number; y: number; z?: number };
 
 const d = (a: Pt, b: Pt) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -36,56 +38,76 @@ function tightlyCurled(tip: Pt, mcp: Pt, wrist: Pt) {
  */
 export function ruleBasedGesture(hands: HandLandmarks[]): SignLabel | null {
   if (!hands.length) return null;
-  const lm = hands[0]!.landmarks as Pt[];
+  const lm = hands[0]!.landmarks as Pt3[];
   if (lm.length < 21) return null;
 
-  const wrist = lm[0]!;
+  const wrist    = lm[0]!;
+  const thumbTip = lm[4]!;
 
   // Reference scale: wrist → middle-finger MCP
   const scale = d(lm[9]!, wrist) || 0.001;
 
-  // ── Finger states ──────────────────────────────────────────────────────
-  const idx  = extended(lm[8]!,  lm[6]!,  wrist);
-  const mid  = extended(lm[12]!, lm[10]!, wrist);
-  const rng  = extended(lm[16]!, lm[14]!, wrist);
-  const pky  = extended(lm[20]!, lm[18]!, wrist);
+  // ── Finger extension state ─────────────────────────────────────────────
+  const idx = extended(lm[8]!,  lm[6]!,  wrist);
+  const mid = extended(lm[12]!, lm[10]!, wrist);
+  const rng = extended(lm[16]!, lm[14]!, wrist);
+  const pky = extended(lm[20]!, lm[18]!, wrist);
 
   const idxCurled = tightlyCurled(lm[8]!,  lm[5]!,  wrist);
   const midCurled = tightlyCurled(lm[12]!, lm[9]!,  wrist);
   const rngCurled = tightlyCurled(lm[16]!, lm[13]!, wrist);
   const pkyCurled = tightlyCurled(lm[20]!, lm[17]!, wrist);
 
-  const thumbTip = lm[4]!;
-  // Thumb spread: tip farther from index MCP than thumb MCP is
+  // Thumb spread: tip farther from index MCP than thumb MCP
   const thumbSpread = d(thumbTip, lm[5]!) > d(lm[2]!, lm[5]!) * 1.1;
-  // Thumb up/down relative to wrist (scaled to hand size)
+  // Thumb vertical orientation relative to wrist
   const thumbUp   = thumbTip.y < wrist.y - scale * 0.4;
   const thumbDown = thumbTip.y > wrist.y + scale * 0.4;
 
-  // ── Derived shapes ─────────────────────────────────────────────────────
+  // ── Compound shape helpers ─────────────────────────────────────────────
 
-  // Bunched: all fingertips clustered tightly together (eat / more)
+  // OK / Eight: thumb tip touching index tip (finger curved into O shape)
+  const thumbIdxTouching = d(thumbTip, lm[8]!) < scale * 0.4;
+
+  // Thumb touching ring finger (Auslan 6)
+  const thumbRngTouching = d(thumbTip, lm[16]!) < scale * 0.4;
+  // Thumb touching middle finger (Auslan 7)
+  const thumbMidTouching = d(thumbTip, lm[12]!) < scale * 0.4;
+
+  // Bunched hand: all fingertips clustered tightly together
   const tipsClose =
     d(lm[8]!, lm[12]!) < scale * 0.35 &&
     d(lm[8]!, lm[16]!) < scale * 0.50 &&
     d(lm[8]!, lm[20]!) < scale * 0.60 &&
     d(lm[4]!, lm[8]!)  < scale * 0.50;
 
-  // C-hand: fingers uniformly curved — not extended, not tightly curled
+  // C-hand: fingers uniformly curved (not extended, not tightly curled), thumb spread
   const cHand =
     !idx && !mid && !rng && !pky &&
     !idxCurled && !midCurled && !rngCurled && !pkyCurled &&
     thumbSpread;
 
-  // Claw hand: fingers spread wide but all bent (not extended, not fist-curled)
+  // Claw hand: fingers bent (not extended, not fist-curled), thumb tucked
   const clawHand =
     !idx && !mid && !rng && !pky &&
     !idxCurled && !midCurled && !rngCurled && !pkyCurled &&
     !thumbSpread;
 
-  // ── Match rules (most specific first) ─────────────────────────────────
+  // ── Rules: most specific first ─────────────────────────────────────────
 
-  // Bunched fingertips → eat
+  // ILY (I Love You): thumb + index + pinky extended, middle + ring curled
+  if (thumbSpread && idx && !mid && !rng && pky) return "i-love-you";
+
+  // OK / Fine: thumb tip touching index tip, middle/ring/pinky extended
+  if (thumbIdxTouching && !idx && mid && rng && pky) return "ok";
+
+  // Auslan numbers involving thumb-finger contact
+  // 6: thumb touches ring, index + middle + pinky extended
+  if (thumbRngTouching && idx && mid && !rng && pky) return "six";
+  // 7: thumb touches middle, index + ring + pinky extended
+  if (thumbMidTouching && idx && !mid && rng && pky) return "seven";
+
+  // Bunched fingertips → eat / food
   if (tipsClose) return "eat";
 
   // C-hand (curved, thumb spread) → drink
@@ -94,68 +116,66 @@ export function ruleBasedGesture(hands: HandLandmarks[]): SignLabel | null {
   // Claw hand (curved, thumb tucked) → want
   if (clawHand) return "want";
 
-  // No non-thumb fingers extended
+  // ── Fist variants (no non-thumb fingers extended) ──────────────────────
   if (!idx && !mid && !rng && !pky) {
-    if (idxCurled && midCurled && rngCurled && pkyCurled) {
-      if (thumbUp)   return "good";   // thumbs up
-      if (thumbDown) return "bad";    // thumbs down
-      return "yes";                   // closed fist
-    }
+    if (thumbUp)   return "good";   // thumbs up
+    if (thumbDown) return "bad";    // thumbs down
+    return "yes";                   // closed fist
   }
 
-  // Fist with thumb up/down (fingers not all tightly curled but folded)
-  if (!idx && !mid && !rng && !pky) {
-    if (thumbUp)   return "good";
-    if (thumbDown) return "bad";
-    return "yes";
-  }
-
-  // All four fingers + thumb spread → five / hello / stop
+  // ── Four fingers extended ──────────────────────────────────────────────
   if (idx && mid && rng && pky) {
-    return thumbSpread ? "hello" : "four";
+    // Five: all spread including thumb
+    if (thumbSpread) return "hello";
+    // Four: thumb tucked
+    return "four";
   }
 
-  // Three fingers
+  // ── Three-finger combinations ──────────────────────────────────────────
   if (idx && mid && rng && !pky) return "three";
 
-  // V-sign
+  // ── Two-finger combinations ────────────────────────────────────────────
   if (idx && mid && !rng && !pky) return "two";
 
-  // Index only
+  // ── Index only → me or you (use Z depth to distinguish direction) ──────
   if (idx && !mid && !rng && !pky) {
-    // Pointing toward camera (z tip < z wrist) → you; away → me
-    const tipZ  = (hands[0]!.landmarks[8] as { z?: number })?.z ?? 0;
-    const wristZ = (hands[0]!.landmarks[0] as { z?: number })?.z ?? 0;
+    const tipZ   = (lm[8] as Pt3).z ?? 0;
+    const wristZ = (lm[0] as Pt3).z ?? 0;
     return tipZ < wristZ - 0.05 ? "you" : "me";
   }
 
-  // Y-hand: thumb + pinky → phone
-  if (!idx && !mid && !rng && pky && thumbSpread) return "phone";
+  // ── Pinky only → nine (hooked / touching thumb area) ──────────────────
+  if (!idx && !mid && !rng && pky) {
+    if (thumbSpread) return "phone"; // Y-hand (thumb + pinky spread)
+    return "nine";                   // pinky only, thumb curled
+  }
 
-  // Two hands: both fists close together → sorry / work
+  // ── Ring only ──────────────────────────────────────────────────────────
+  if (!idx && !mid && rng && !pky) return "eight"; // ring + thumb touching area
+
+  // ── Two hands: proximity-based signs ──────────────────────────────────
   if (hands.length >= 2) {
-    const lm2 = hands[1]!.landmarks as Pt[];
-    const handsClose = d(lm[0]!, lm2[0]!) < scale * 1.5;
+    const lm2    = hands[1]!.landmarks as Pt[];
+    const wrist2 = lm2[0]!;
+    const handsClose = d(wrist, wrist2) < scale * 1.5;
 
-    const idx2  = extended(lm2[8]!,  lm2[6]!,  lm2[0]!);
-    const mid2  = extended(lm2[12]!, lm2[10]!, lm2[0]!);
-    const rng2  = extended(lm2[16]!, lm2[14]!, lm2[0]!);
-    const pky2  = extended(lm2[20]!, lm2[18]!, lm2[0]!);
+    const idx2 = extended(lm2[8]!,  lm2[6]!,  wrist2);
+    const mid2 = extended(lm2[12]!, lm2[10]!, wrist2);
+    const rng2 = extended(lm2[16]!, lm2[14]!, wrist2);
+    const pky2 = extended(lm2[20]!, lm2[18]!, wrist2);
     const allOpen2 = idx2 && mid2 && rng2 && pky2;
+    const fist2 = !idx2 && !mid2 && !rng2 && !pky2;
+    const fist1 = !idx && !mid && !rng && !pky;
 
-    // Both fists together → sorry
-    if (!idx && !mid && !rng && !pky && !idx2 && !mid2 && !rng2 && !pky2 && handsClose) {
-      return "sorry";
+    if (handsClose) {
+      // Both fists together → sorry
+      if (fist1 && fist2) return "sorry";
+      // Both open hands together → stop
+      if (idx && mid && rng && pky && allOpen2) return "stop";
+      // One hand open, one fist → help
+      if (fist1 && allOpen2) return "help";
+      if (idx && mid && rng && pky && fist2) return "help";
     }
-
-    // Both open hands → help / stop
-    if (idx && mid && rng && pky && allOpen2 && handsClose) {
-      return "stop";
-    }
-
-    // One hand open, one fist (thumbs-up lifted) → help
-    if ((!idx && !mid && !rng && !pky) && allOpen2) return "help";
-    if ((idx && mid && rng && pky) && !idx2 && !mid2 && !rng2 && !pky2) return "help";
   }
 
   return null;
