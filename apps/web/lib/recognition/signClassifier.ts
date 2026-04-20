@@ -60,33 +60,29 @@ export async function classify(
 ): Promise<ClassifierResult | null> {
   if (!model) return null;
 
-  return tf.tidy(() => {
-    const input = tf
-      .tensor(snapshot, [1, windowSize, featuresPerFrame])
-      .toFloat();
-    const output = model!.predict(input) as tf.Tensor;
-    const probs = output.dataSync() as Float32Array;
+  const input = tf.tensor(snapshot, [1, windowSize, featuresPerFrame]).toFloat();
+  const output = model.predict(input) as tf.Tensor;
+  const probs = output.dataSync() as Float32Array;
+  output.dispose();
+  input.dispose();
 
-    let maxIdx = 0;
-    let maxProb = 0;
-    for (let i = 0; i < probs.length; i++) {
-      if ((probs[i] ?? 0) > maxProb) {
-        maxProb = probs[i] ?? 0;
-        maxIdx = i;
-      }
-    }
+  let maxIdx = 0;
+  let maxProb = 0;
+  for (let i = 0; i < probs.length; i++) {
+    const p = probs[i] ?? 0;
+    if (p > maxProb) { maxProb = p; maxIdx = i; }
+  }
 
-    if (maxProb < threshold) return null;
+  if (maxProb < threshold) return null;
 
-    const label = SIGN_LABELS[maxIdx];
-    if (!label) return null;
+  const label = SIGN_LABELS[maxIdx];
+  if (!label) return null;
 
-    return {
-      label,
-      displayText: label.replace(/-/g, " "),
-      confidence: maxProb,
-    };
-  }) as unknown as ClassifierResult | null;
+  return {
+    label,
+    displayText: label.replace(/-/g, " "),
+    confidence: maxProb,
+  };
 }
 
 export function isModelLoaded(): boolean {
