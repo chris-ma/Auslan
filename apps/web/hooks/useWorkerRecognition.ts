@@ -8,9 +8,9 @@ import type { LandmarkerResult } from "@/lib/mediapipe/types";
 const TARGET_FPS = 24;
 const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
-// Resolution sent to the worker — lower than native to reduce transfer cost
+// Resolution sent to the worker — 16:9 to match the camera stream (no squish distortion)
 const WORKER_WIDTH = 320;
-const WORKER_HEIGHT = 240;
+const WORKER_HEIGHT = 180;
 
 /**
  * Drop-in replacement for useRecognition that runs MediaPipe HandLandmarker

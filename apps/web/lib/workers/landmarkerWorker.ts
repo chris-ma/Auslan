@@ -47,9 +47,9 @@ self.onmessage = async (
         baseOptions: { modelAssetPath: MODEL_ASSET_PATH, delegate: "GPU" },
         runningMode: "VIDEO",
         numHands: 2,
-        minHandDetectionConfidence: 0.5,
-        minHandPresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minHandDetectionConfidence: 0.3,
+        minHandPresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3,
       });
       self.postMessage({ type: "ready" });
     } catch (err) {

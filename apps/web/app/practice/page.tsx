@@ -113,7 +113,7 @@ export default function PracticePage() {
         <LandmarkOverlay
           result={lastResult}
           videoWidth={640}
-          videoHeight={480}
+          videoHeight={360}
           mirrored
         />
       )}
@@ -126,6 +126,14 @@ export default function PracticePage() {
         opacity={subtitleOpacity}
         showConfidence={showConfidence}
       />
+
+      {/* Hand detected indicator */}
+      {recognitionStatus === "active" && lastResult && lastResult.hands.length > 0 && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1 pointer-events-none">
+          <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse" aria-hidden />
+          <span className="text-xs text-white/90">Hand detected</span>
+        </div>
+      )}
 
       {/* Camera-off overlay */}
       {!cameraActive && hasStartedOnce.current && (
