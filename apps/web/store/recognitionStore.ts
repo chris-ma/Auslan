@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { subscribeWithSelector } from "zustand/middleware";
 import type { SignLabel } from "@auslan/vocab";
 
 export type RecognitionStatus =
@@ -46,7 +47,8 @@ interface RecognitionState {
 
 let nextId = 0;
 
-export const useRecognitionStore = create<RecognitionState>((set) => ({
+export const useRecognitionStore = create<RecognitionState>()(
+  subscribeWithSelector((set) => ({
   status: "idle",
   errorMessage: null,
   subtitles: [],
@@ -74,4 +76,4 @@ export const useRecognitionStore = create<RecognitionState>((set) => ({
   setFontSize: (fontSize) => set({ fontSize }),
   setSubtitlePosition: (subtitlePosition) => set({ subtitlePosition }),
   setSubtitleOpacity: (subtitleOpacity) => set({ subtitleOpacity }),
-}));
+})));
