@@ -11,7 +11,6 @@ import { LandmarkOverlay } from "@/components/camera/LandmarkOverlay";
 import { SettingsPanel } from "@/components/camera/SettingsPanel";
 import { SubtitleBar } from "@/components/subtitles/SubtitleBar";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Camera, CameraOff, AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
@@ -98,115 +97,107 @@ export default function PracticePage() {
     );
   }
 
+  // ── Full-screen camera view ───────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b">
-        <Link href="/" className="text-sm font-semibold hover:underline">
+    <div className="relative h-screen w-screen overflow-hidden bg-black">
+      {/* Camera feed fills the full viewport */}
+      <CameraView
+        stream={stream}
+        mirrored
+        className="absolute inset-0 w-full h-full rounded-none"
+        onVideoRef={handleVideoRef}
+      />
+
+      {/* Hand landmark skeleton */}
+      {recognitionStatus === "active" && (
+        <LandmarkOverlay
+          result={lastResult}
+          videoWidth={640}
+          videoHeight={480}
+          mirrored
+        />
+      )}
+
+      {/* Subtitles */}
+      <SubtitleBar
+        subtitles={subtitles}
+        fontSize={fontSize}
+        position={subtitlePosition}
+        opacity={subtitleOpacity}
+        showConfidence={showConfidence}
+      />
+
+      {/* Camera-off overlay */}
+      {!cameraActive && hasStartedOnce.current && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80">
+          <CameraOff className="h-10 w-10 text-white/50" aria-hidden />
+          <p className="text-sm text-white/60">Camera off</p>
+        </div>
+      )}
+
+      {/* Model loading overlay */}
+      {recognitionStatus === "loading" && (
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60"
+          role="status"
+          aria-label="Loading recognition models"
+        >
+          <Loader2 className="h-8 w-8 text-white animate-spin" aria-hidden />
+          <p className="text-sm text-white/90 font-medium">
+            Loading sign recognition models…
+          </p>
+          <p className="text-xs text-white/60">First load may take a moment</p>
+        </div>
+      )}
+
+      {/* Floating header */}
+      <header className="absolute top-0 inset-x-0 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+        <Link
+          href="/"
+          className="text-sm font-semibold text-white hover:underline pointer-events-auto"
+        >
           ← Auslan Live
         </Link>
-        <span className="text-sm text-muted-foreground">Practice mode</span>
+        <span className="text-sm text-white/70">Practice mode</span>
       </header>
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 gap-6">
-        {/* Video + subtitle container */}
-        <div className="relative w-full max-w-2xl aspect-video rounded-lg overflow-hidden bg-neutral-900 shadow-xl">
-          <CameraView
-            stream={stream}
-            mirrored
-            className="absolute inset-0 w-full h-full"
-            onVideoRef={handleVideoRef}
-          />
-
-          {recognitionStatus === "active" && (
-            <LandmarkOverlay
-              result={lastResult}
-              videoWidth={640}
-              videoHeight={480}
-              mirrored
-            />
-          )}
-
-          <SubtitleBar
-            subtitles={subtitles}
-            fontSize={fontSize}
-            position={subtitlePosition}
-            opacity={subtitleOpacity}
-            showConfidence={showConfidence}
-          />
-
-          {/* Camera-off overlay (shown after first use) */}
-          {!cameraActive && hasStartedOnce.current && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80">
-              <CameraOff className="h-10 w-10 text-white/50" aria-hidden />
-              <p className="text-sm text-white/60">Camera off</p>
-            </div>
-          )}
-
-          {/* Model loading overlay */}
-          {recognitionStatus === "loading" && (
-            <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60"
-              role="status"
-              aria-label="Loading recognition models"
-            >
-              <Loader2 className="h-8 w-8 text-white animate-spin" aria-hidden />
-              <p className="text-sm text-white/90 font-medium">
-                Loading sign recognition models…
-              </p>
-              <p className="text-xs text-white/60">First load may take a moment</p>
-            </div>
-          )}
+      {/* Recognition error banner */}
+      {recognitionStatus === "error" && recognitionError && (
+        <div
+          role="alert"
+          className="absolute top-16 left-4 right-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-xl flex items-start gap-3 rounded-lg border border-destructive/60 bg-black/80 px-4 py-3"
+        >
+          <AlertTriangle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" aria-hidden />
+          <p className="text-sm text-red-300">{recognitionError}</p>
         </div>
+      )}
 
-        {/* Recognition error banner */}
-        {recognitionStatus === "error" && recognitionError && (
-          <div
-            role="alert"
-            className="w-full max-w-2xl flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3"
-          >
-            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" aria-hidden />
-            <p className="text-sm text-destructive">{recognitionError}</p>
-          </div>
-        )}
-
-        {/* Control bar */}
-        <div className="w-full max-w-2xl">
-          <ControlBar
-            recognitionStatus={recognitionStatus}
-            fps={fps}
-            devices={devices}
-            activeDeviceId={activeDeviceId}
-            cameraActive={cameraActive}
-            onStart={start}
-            onStop={stop}
-            onClear={clearSubtitles}
-            onSwitchCamera={switchCamera}
-            onOpenSettings={() => setSettingsOpen(true)}
-            onToggleCamera={handleToggleCamera}
-          />
-        </div>
-
-        {/* Contextual hints */}
-        {(recognitionStatus === "ready" || recognitionStatus === "idle") && (
-          <p className="text-sm text-muted-foreground">
-            Press <strong>Start</strong> and perform Auslan signs one at a time
-            with a brief pause between each.{" "}
-            <Link href="/glossary" className="underline">
-              See supported signs
-            </Link>
-          </p>
-        )}
+      {/* Floating bottom controls */}
+      <div className="absolute bottom-0 inset-x-0 px-4 sm:px-8 pb-8 pt-20 bg-gradient-to-t from-black/70 to-transparent">
         {recognitionStatus === "active" && subtitles.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Show your hand to the camera and sign slowly.{" "}
-            <Badge variant="outline" className="text-xs">
-              Tip: keep your hand centred in frame
-            </Badge>
+          <p className="text-sm text-white/70 text-center mb-3">
+            Show your hand to the camera and sign slowly.
           </p>
         )}
-      </main>
+        {(recognitionStatus === "ready" || recognitionStatus === "idle") && (
+          <p className="text-sm text-white/70 text-center mb-3">
+            Press <strong className="text-white">Start</strong> and sign one at a time with a brief pause between each.
+          </p>
+        )}
+        <ControlBar
+          recognitionStatus={recognitionStatus}
+          fps={fps}
+          devices={devices}
+          activeDeviceId={activeDeviceId}
+          cameraActive={cameraActive}
+          onStart={start}
+          onStop={stop}
+          onClear={clearSubtitles}
+          onSwitchCamera={switchCamera}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onToggleCamera={handleToggleCamera}
+        />
+      </div>
 
       <SettingsPanel open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
