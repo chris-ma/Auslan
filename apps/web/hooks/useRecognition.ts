@@ -4,20 +4,18 @@ import { useCallback, useEffect, useRef } from "react";
 import { useRecognitionStore } from "@/store/recognitionStore";
 import { RecognitionPipeline } from "@/lib/recognition/recognitionPipeline";
 import { getHandLandmarker, parseResult } from "@/lib/mediapipe/handLandmarker";
+import type { HandLandmarker } from "@mediapipe/tasks-vision";
 
 const TARGET_FPS = 24;
 const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
 export function useRecognition(videoRef: React.RefObject<HTMLVideoElement>) {
-  const {
-    status,
-    setStatus,
-    setError,
-    addSubtitle,
-    setFps,
-  } = useRecognitionStore();
+  const { status, setStatus, setError, addSubtitle, setFps } =
+    useRecognitionStore();
 
   const pipelineRef = useRef<RecognitionPipeline | null>(null);
+  // Cache the landmarker so we never re-await the singleton inside the loop
+  const landmarkerRef = useRef<HandLandmarker | null>(null);
   const rafRef = useRef<number>(0);
   const lastFrameTime = useRef(0);
   const fpsFrameCount = useRef(0);
@@ -36,16 +34,18 @@ export function useRecognition(videoRef: React.RefObject<HTMLVideoElement>) {
     setStatus("loading");
 
     try {
+      // Initialise pipeline and landmarker once — both are singletons
       if (!pipelineRef.current) {
         pipelineRef.current = new RecognitionPipeline();
         await pipelineRef.current.init();
       }
-      await getHandLandmarker();
+      landmarkerRef.current = await getHandLandmarker();
 
       pipelineRef.current.start();
       setStatus("active");
 
-      const loop = async (now: number) => {
+      // Synchronous RAF loop — no async calls inside the hot path
+      const loop = (now: number) => {
         if (!videoRef.current || videoRef.current.readyState < 2) {
           rafRef.current = requestAnimationFrame(loop);
           return;
@@ -63,25 +63,23 @@ export function useRecognition(videoRef: React.RefObject<HTMLVideoElement>) {
           }
 
           try {
-            const landmarker = await getHandLandmarker();
-            const rawResult = landmarker.detectForVideo(
-              videoRef.current,
-              now
-            );
+            const lm = landmarkerRef.current;
+            if (!lm) return;
+            const rawResult = lm.detectForVideo(videoRef.current, now);
             const result = parseResult(rawResult, now);
-            const pipelineResult =
-              await pipelineRef.current?.processFrame(result);
-
-            if (pipelineResult) {
-              addSubtitle({
-                label: pipelineResult.label,
-                displayText: pipelineResult.displayText,
-                confidence: pipelineResult.confidence,
-                timestampMs: pipelineResult.timestampMs,
-              });
-            }
+            // processFrame is async (TF.js inference) — fire and forget per frame
+            pipelineRef.current?.processFrame(result).then((pipelineResult) => {
+              if (pipelineResult) {
+                addSubtitle({
+                  label: pipelineResult.label,
+                  displayText: pipelineResult.displayText,
+                  confidence: pipelineResult.confidence,
+                  timestampMs: pipelineResult.timestampMs,
+                });
+              }
+            });
           } catch (err) {
-            console.error("Recognition error:", err);
+            console.error("Recognition frame error:", err);
           }
         }
 
@@ -90,7 +88,14 @@ export function useRecognition(videoRef: React.RefObject<HTMLVideoElement>) {
 
       rafRef.current = requestAnimationFrame(loop);
     } catch (err) {
-      setError(`Failed to start recognition: ${err instanceof Error ? err.message : String(err)}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      const isModelMissing =
+        msg.includes("404") || msg.includes("model.json") || msg.includes("Failed to fetch");
+      setError(
+        isModelMissing
+          ? "Model files not found. Run `python training/src/generate_placeholder_models.py` first."
+          : `Failed to start recognition: ${msg}`
+      );
       setStatus("error");
     }
   }, [videoRef, setStatus, setError, addSubtitle, setFps]);

@@ -8,6 +8,16 @@ const CONFIDENCE_THRESHOLD = 0.75;
 let model: tf.LayersModel | null = null;
 let loadPromise: Promise<tf.LayersModel> | null = null;
 
+export class ModelNotFoundError extends Error {
+  constructor(path: string) {
+    super(
+      `Sign classifier model not found at ${path}. ` +
+        "Run `python training/src/generate_placeholder_models.py` to create placeholder models."
+    );
+    this.name = "ModelNotFoundError";
+  }
+}
+
 export async function loadSignClassifier(): Promise<tf.LayersModel> {
   if (model) return model;
   if (loadPromise) return loadPromise;
@@ -15,8 +25,18 @@ export async function loadSignClassifier(): Promise<tf.LayersModel> {
   loadPromise = (async () => {
     await tf.setBackend("webgl");
     await tf.ready();
-    model = await tf.loadLayersModel(MODEL_PATH);
-    return model;
+    try {
+      model = await tf.loadLayersModel(MODEL_PATH);
+      return model;
+    } catch (err) {
+      // Reset so callers can retry after placing model files
+      loadPromise = null;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.includes("Failed to fetch") || msg.includes("model.json")) {
+        throw new ModelNotFoundError(MODEL_PATH);
+      }
+      throw err;
+    }
   })();
 
   return loadPromise;

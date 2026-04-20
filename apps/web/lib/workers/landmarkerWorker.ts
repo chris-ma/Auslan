@@ -67,7 +67,12 @@ self.onmessage = async (
     ctx.drawImage(bitmap, 0, 0);
     bitmap.close();
 
-    const raw = landmarker.detectForVideo(offscreen, timestampMs);
+    // OffscreenCanvas is a valid ImageSource at runtime but the TS types for
+    // @mediapipe/tasks-vision don't yet include it — cast to suppress the error.
+    const raw = landmarker.detectForVideo(
+      offscreen as unknown as HTMLCanvasElement,
+      timestampMs
+    );
     const result = parseResult(raw, timestampMs);
     self.postMessage({ type: "result", payload: result });
     return;
