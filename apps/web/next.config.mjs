@@ -1,12 +1,9 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  // Required so webpack transpiles the @auslan/vocab TypeScript workspace package
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   transpilePackages: ["@auslan/vocab"],
   async headers() {
     return [
       {
-        // Required for SharedArrayBuffer (MediaPipe WASM multi-threading)
         source: "/(.*)",
         headers: [
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
@@ -16,7 +13,6 @@ const nextConfig: NextConfig = {
     ];
   },
   webpack(config) {
-    // Allow WASM imports
     config.experiments = { ...config.experiments, asyncWebAssembly: true };
     return config;
   },
