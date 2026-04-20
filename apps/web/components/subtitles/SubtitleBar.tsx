@@ -55,7 +55,7 @@ export function SubtitleBar({
             <span
               key={entry.id}
               className={cn(
-                "text-white/50 font-medium",
+                "text-yellow-300/50 font-medium",
                 historySizeClasses[fontSize]
               )}
             >
@@ -72,7 +72,7 @@ export function SubtitleBar({
       >
         <span
           className={cn(
-            "subtitle-word font-bold text-white leading-none tracking-wide drop-shadow-lg",
+            "subtitle-word font-bold text-yellow-300 leading-none tracking-wide drop-shadow-lg",
             latestSizeClasses[fontSize]
           )}
         >
