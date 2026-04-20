@@ -60,7 +60,7 @@ export async function classify(
 ): Promise<ClassifierResult | null> {
   if (!model) return null;
 
-  return tf.tidy(() => {
+  return tf.tidy<ClassifierResult | null>(() => {
     const input = tf
       .tensor(snapshot, [1, windowSize, featuresPerFrame])
       .toFloat();
