@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Required so webpack transpiles the @auslan/vocab TypeScript workspace package
+  transpilePackages: ["@auslan/vocab"],
   async headers() {
     return [
       {
