@@ -44,7 +44,7 @@ export function SubtitleBar({
       aria-label={label}
       className={cn(
         "absolute inset-x-0 flex flex-col items-center gap-3 pointer-events-none",
-        "bottom-24 sm:bottom-28",
+        "top-16",
         className
       )}
     >
