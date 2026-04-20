@@ -5,7 +5,7 @@ import { useRecognitionStore } from "@/store/recognitionStore";
 import { RecognitionPipeline } from "@/lib/recognition/recognitionPipeline";
 import type { LandmarkerResult } from "@/lib/mediapipe/types";
 
-const TARGET_FPS = 24;
+const TARGET_FPS = 60;
 const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
 // Resolution sent to the worker — 16:9 to match the camera stream (no squish distortion)

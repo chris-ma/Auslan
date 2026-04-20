@@ -10,7 +10,10 @@ import type { LandmarkerResult } from "../mediapipe/types";
 
 const WINDOW_SIZE = 30;
 const FEATURES_PER_FRAME = 126; // 63 × 2 hands
-const MIN_SIGN_GAP_MS = 500; // debounce: don't emit same sign twice within this window
+const MIN_SIGN_GAP_MS = 250;
+// Frames of missing hands allowed before resetting the buffer.
+// Prevents a single dropped detection from wiping accumulated frames.
+const NO_HAND_GRACE_FRAMES = 4;
 
 export interface PipelineResult extends ClassifierResult {
   timestampMs: number;
@@ -21,6 +24,7 @@ export class RecognitionPipeline {
   private lastEmittedLabel: string | null = null;
   private lastEmittedAt = 0;
   private running = false;
+  private noHandCount = 0;
 
   /** Live threshold — update this from the recognition store to take effect immediately. */
   confidenceThreshold = 0.05;
@@ -34,11 +38,13 @@ export class RecognitionPipeline {
     this.buffer.reset();
     this.lastEmittedLabel = null;
     this.lastEmittedAt = 0;
+    this.noHandCount = 0;
   }
 
   stop(): void {
     this.running = false;
     this.buffer.reset();
+    this.noHandCount = 0;
   }
 
   async processFrame(
@@ -49,9 +55,12 @@ export class RecognitionPipeline {
     const { hands, timestampMs } = landmarkerResult;
 
     if (hands.length === 0) {
-      this.buffer.reset();
+      this.noHandCount++;
+      if (this.noHandCount >= NO_HAND_GRACE_FRAMES) this.buffer.reset();
       return null;
     }
+
+    this.noHandCount = 0;
 
     const frame = buildFeatureVector(hands);
 
