@@ -79,5 +79,6 @@ export async function deleteStageModel(stage: 1 | 2 | 3): Promise<void> {
 }
 
 export function hasTrainedModel(stage: 1 | 2 | 3): boolean {
+  if (typeof window === "undefined") return false;
   return localStorage.getItem(LABEL_KEY(stage)) !== null;
 }
