@@ -1,3 +1,4 @@
+import * as tf from "@tensorflow/tfjs";
 import { buildFeatureVector } from "./normalizer";
 import { FrameBuffer } from "./frameBuffer";
 import {
@@ -7,6 +8,7 @@ import {
 } from "./signClassifier";
 import { loadRestPoseDetector, isSigning } from "./restPoseDetector";
 import { ruleBasedGesture } from "./gestureRules";
+import { loadStageModel } from "../training/stageModels";
 import { SIGN_MAP } from "@auslan/vocab";
 import type { SignLabel } from "@auslan/vocab";
 import type { LandmarkerResult } from "../mediapipe/types";
@@ -14,38 +16,97 @@ import type { LandmarkerResult } from "../mediapipe/types";
 const WINDOW_SIZE = 30;
 const FEATURES_PER_FRAME = 126; // 63 × 2 hands
 const MIN_SIGN_GAP_MS = 250;
-// Frames of missing hands allowed before resetting the buffer.
 const NO_HAND_GRACE_FRAMES = 4;
 
-// Rule-based detector: require this many consistent frames before emitting.
-// At 60fps this is ~133ms — fast enough to feel immediate.
 const RULE_HISTORY_SIZE = 8;
-const RULE_MIN_CONSISTENT = 6; // 6 out of 8 frames
+const RULE_MIN_CONSISTENT = 6;
 
 export interface PipelineResult extends ClassifierResult {
   timestampMs: number;
 }
 
+function classifyWithStageModel(
+  model: tf.LayersModel,
+  data: Float32Array,
+  labels: string[],
+  inputShape: number[],
+  threshold: number
+): PipelineResult | null {
+  const input = tf.tensor(data, [1, ...inputShape]).toFloat();
+  const output = model.predict(input) as tf.Tensor;
+  const probs = output.dataSync() as Float32Array;
+  output.dispose();
+  input.dispose();
+
+  let maxIdx = 0;
+  let maxProb = 0;
+  for (let i = 0; i < probs.length; i++) {
+    const p = probs[i] ?? 0;
+    if (p > maxProb) { maxProb = p; maxIdx = i; }
+  }
+
+  if (maxProb < threshold) return null;
+  const labelStr = labels[maxIdx];
+  if (!labelStr) return null;
+
+  const def = SIGN_MAP.get(labelStr as SignLabel);
+  return {
+    label: labelStr as SignLabel,
+    displayText: def?.displayText ?? labelStr.replace(/-/g, " "),
+    confidence: maxProb,
+    timestampMs: 0,
+  };
+}
+
 export class RecognitionPipeline {
   private buffer = new FrameBuffer(WINDOW_SIZE, FEATURES_PER_FRAME);
+  private buf15 = new FrameBuffer(15, FEATURES_PER_FRAME);
+  private buf45 = new FrameBuffer(45, FEATURES_PER_FRAME);
+
   private lastEmittedLabel: string | null = null;
   private lastEmittedAt = 0;
   private running = false;
   private noHandCount = 0;
-
-  // Rule-based path state
   private ruleHistory: (SignLabel | null)[] = [];
 
-  /** Live threshold — update this from the recognition store to take effect immediately. */
+  private stage1Model: tf.LayersModel | null = null;
+  private stage2Model: tf.LayersModel | null = null;
+  private stage3Model: tf.LayersModel | null = null;
+  private stage1Labels: string[] = [];
+  private stage2Labels: string[] = [];
+  private stage3Labels: string[] = [];
+
   confidenceThreshold = 0.05;
 
   async init(): Promise<void> {
-    await Promise.all([loadSignClassifier(), loadRestPoseDetector()]);
+    await Promise.all([
+      loadSignClassifier(),
+      loadRestPoseDetector(),
+      this.loadTrainedModels(),
+    ]);
+  }
+
+  async loadTrainedModels(): Promise<void> {
+    const [s1, s2, s3] = await Promise.all([
+      loadStageModel(1),
+      loadStageModel(2),
+      loadStageModel(3),
+    ]);
+    if (s1) { this.stage1Model = s1.model; this.stage1Labels = s1.labels; }
+    if (s2) { this.stage2Model = s2.model; this.stage2Labels = s2.labels; }
+    if (s3) { this.stage3Model = s3.model; this.stage3Labels = s3.labels; }
+  }
+
+  /** Call after a stage finishes training to hot-reload its model. */
+  async reloadTrainedModels(): Promise<void> {
+    await this.loadTrainedModels();
   }
 
   start(): void {
     this.running = true;
     this.buffer.reset();
+    this.buf15.reset();
+    this.buf45.reset();
     this.ruleHistory = [];
     this.lastEmittedLabel = null;
     this.lastEmittedAt = 0;
@@ -55,8 +116,22 @@ export class RecognitionPipeline {
   stop(): void {
     this.running = false;
     this.buffer.reset();
+    this.buf15.reset();
+    this.buf45.reset();
     this.ruleHistory = [];
     this.noHandCount = 0;
+  }
+
+  private tryEmit(
+    result: Omit<PipelineResult, "timestampMs">,
+    timestampMs: number
+  ): PipelineResult | null {
+    const sameAsLast = result.label === this.lastEmittedLabel;
+    const tooSoon = timestampMs - this.lastEmittedAt < MIN_SIGN_GAP_MS;
+    if (sameAsLast && tooSoon) return null;
+    this.lastEmittedLabel = result.label;
+    this.lastEmittedAt = timestampMs;
+    return { ...result, timestampMs };
   }
 
   async processFrame(
@@ -70,6 +145,8 @@ export class RecognitionPipeline {
       this.noHandCount++;
       if (this.noHandCount >= NO_HAND_GRACE_FRAMES) {
         this.buffer.reset();
+        this.buf15.reset();
+        this.buf45.reset();
         this.ruleHistory = [];
       }
       return null;
@@ -77,7 +154,7 @@ export class RecognitionPipeline {
 
     this.noHandCount = 0;
 
-    // ── Rule-based path (no training needed) ────────────────────────────
+    // ── Rule-based path ──────────────────────────────────────────────────
     const ruleGesture = ruleBasedGesture(hands);
     this.ruleHistory.push(ruleGesture);
     if (this.ruleHistory.length > RULE_HISTORY_SIZE) this.ruleHistory.shift();
@@ -94,26 +171,60 @@ export class RecognitionPipeline {
       }
 
       if (bestLabel !== null && bestCount >= RULE_MIN_CONSISTENT) {
-        const sameAsLast = bestLabel === this.lastEmittedLabel;
-        const tooSoon = timestampMs - this.lastEmittedAt < MIN_SIGN_GAP_MS;
-        if (!sameAsLast || !tooSoon) {
-          this.lastEmittedLabel = bestLabel;
-          this.lastEmittedAt = timestampMs;
-          this.ruleHistory = []; // reset so next gesture starts fresh
-          const def = SIGN_MAP.get(bestLabel);
-          return {
-            label: bestLabel,
-            displayText: def?.displayText ?? bestLabel,
-            confidence: bestCount / RULE_HISTORY_SIZE,
-            timestampMs,
-          };
-        }
+        this.ruleHistory = [];
+        const def = SIGN_MAP.get(bestLabel);
+        const r = this.tryEmit(
+          { label: bestLabel, displayText: def?.displayText ?? bestLabel, confidence: bestCount / RULE_HISTORY_SIZE },
+          timestampMs
+        );
+        if (r) return r;
       }
     }
 
-    // ── ML classifier path (needs trained models) ────────────────────────
+    // ── Build feature vector for ML paths ───────────────────────────────
     const frame = buildFeatureVector(hands);
 
+    // ── Stage 1: single-frame trained model ──────────────────────────────
+    if (this.stage1Model && this.stage1Labels.length > 0) {
+      const s1 = classifyWithStageModel(
+        this.stage1Model, frame, this.stage1Labels,
+        [FEATURES_PER_FRAME], this.confidenceThreshold
+      );
+      if (s1) {
+        const r = this.tryEmit(s1, timestampMs);
+        if (r) return r;
+      }
+    }
+
+    // ── Feed sequential buffers ──────────────────────────────────────────
+    this.buf15.push(frame);
+    this.buf45.push(frame);
+
+    // ── Stage 2: 15-frame trained model ──────────────────────────────────
+    if (this.stage2Model && this.stage2Labels.length > 0 && this.buf15.isFull) {
+      const s2 = classifyWithStageModel(
+        this.stage2Model, this.buf15.snapshot(), this.stage2Labels,
+        [15, FEATURES_PER_FRAME], this.confidenceThreshold
+      );
+      if (s2) {
+        const r = this.tryEmit(s2, timestampMs);
+        if (r) return r;
+      }
+    }
+
+    // ── Stage 3: 45-frame trained model ──────────────────────────────────
+    if (this.stage3Model && this.stage3Labels.length > 0 && this.buf45.isFull) {
+      const s3 = classifyWithStageModel(
+        this.stage3Model, this.buf45.snapshot(), this.stage3Labels,
+        [45, FEATURES_PER_FRAME], this.confidenceThreshold
+      );
+      if (s3) {
+        const r = this.tryEmit(s3, timestampMs);
+        if (r) return r;
+      }
+    }
+
+    // ── Fallback: REST gate + 30-frame static classifier ─────────────────
     const signing = await isSigning(frame);
     if (!signing) {
       this.buffer.reset();
@@ -131,14 +242,6 @@ export class RecognitionPipeline {
     );
 
     if (!result) return null;
-
-    const sameAsLast = result.label === this.lastEmittedLabel;
-    const tooSoon = timestampMs - this.lastEmittedAt < MIN_SIGN_GAP_MS;
-    if (sameAsLast && tooSoon) return null;
-
-    this.lastEmittedLabel = result.label;
-    this.lastEmittedAt = timestampMs;
-
-    return { ...result, timestampMs };
+    return this.tryEmit(result, timestampMs);
   }
 }

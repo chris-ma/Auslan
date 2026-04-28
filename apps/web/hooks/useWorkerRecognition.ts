@@ -183,5 +183,5 @@ export function useWorkerRecognition(
     };
   }, []);
 
-  return { status, start, stop, lastResult };
+  return { status, start, stop, lastResult, pipelineRef };
 }

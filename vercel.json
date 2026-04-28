@@ -1,7 +1,6 @@
 {
-  "buildCommand": "npm run build --workspace=@auslan/web",
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter @auslan/web build",
   "outputDirectory": "apps/web/.next",
-  "installCommand": "npm install",
-  "framework": "nextjs",
-  "devCommand": "pnpm --filter @auslan/web dev"
+  "framework": "nextjs"
 }
