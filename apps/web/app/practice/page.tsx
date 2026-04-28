@@ -166,7 +166,12 @@ export default function PracticePage() {
         >
           ← Auslan Live
         </Link>
-        <span className="text-sm text-white/70">Practice mode</span>
+        <Link
+          href="/train"
+          className="text-sm text-white/70 hover:text-white hover:underline pointer-events-auto"
+        >
+          Train your signs →
+        </Link>
       </header>
 
       {/* Recognition error banner */}

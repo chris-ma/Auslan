@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Hand, Video, BookOpen, Lock } from "lucide-react";
+import { Hand, Video, BookOpen, Lock, GraduationCap } from "lucide-react";
 
 export default function LandingPage() {
   return (
@@ -31,6 +31,12 @@ export default function LandingPage() {
               Video call
             </Link>
           </Button>
+          <Button asChild variant="outline" size="lg">
+            <Link href="/train">
+              <GraduationCap className="mr-2 h-5 w-5" aria-hidden />
+              Train your signs
+            </Link>
+          </Button>
           <Button asChild variant="ghost" size="lg">
             <Link href="/glossary">
               <BookOpen className="mr-2 h-5 w-5" aria-hidden />
@@ -46,7 +52,7 @@ export default function LandingPage() {
           <FeatureCard
             icon={<Hand className="h-6 w-6 text-primary" />}
             title="Real-time recognition"
-            description="50 common Auslan signs detected via MediaPipe hand landmarks and an in-browser TensorFlow.js classifier."
+            description="97 everyday Auslan signs detected via MediaPipe hand landmarks — rule-based and trainable ML, all in-browser."
           />
           <FeatureCard
             icon={<Lock className="h-6 w-6 text-primary" />}
