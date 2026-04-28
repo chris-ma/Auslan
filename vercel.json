@@ -1,0 +1,6 @@
+{
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter @auslan/web build",
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs"
+}
