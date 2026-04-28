@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 import type { SubtitleEntry, SubtitleFontSize } from "@/store/recognitionStore";
 
 const latestSizeClasses: Record<SubtitleFontSize, string> = {
-  sm: "text-3xl",
-  md: "text-5xl",
-  lg: "text-7xl",
+  sm: "text-2xl sm:text-3xl",
+  md: "text-3xl sm:text-5xl",
+  lg: "text-4xl sm:text-7xl",
 };
 
 const historySizeClasses: Record<SubtitleFontSize, string> = {
@@ -50,7 +50,7 @@ export function SubtitleBar({
     >
       {/* History strip */}
       {history.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 px-6 max-w-xl">
+        <div className="flex flex-wrap justify-center gap-x-2 gap-y-1 px-4 max-w-[90vw] sm:max-w-xl">
           {history.map((entry) => (
             <span
               key={entry.id}
@@ -67,7 +67,7 @@ export function SubtitleBar({
 
       {/* Latest word — large, prominent */}
       <div
-        className="rounded-2xl px-8 py-4 flex items-center gap-3"
+        className="rounded-2xl px-5 py-3 sm:px-8 sm:py-4 flex items-center gap-3 max-w-[90vw]"
         style={{ backgroundColor: `rgba(0,0,0,${opacity})` }}
       >
         <span

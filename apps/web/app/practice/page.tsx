@@ -159,18 +159,18 @@ export default function PracticePage() {
       )}
 
       {/* Floating header */}
-      <header className="absolute top-0 inset-x-0 flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+      <header className="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
         <Link
           href="/"
-          className="text-sm font-semibold text-white hover:underline pointer-events-auto"
+          className="text-xs sm:text-sm font-semibold text-white hover:underline pointer-events-auto"
         >
-          ← Auslan Live
+          ← Home
         </Link>
         <Link
           href="/train"
-          className="text-sm text-white/70 hover:text-white hover:underline pointer-events-auto"
+          className="text-xs sm:text-sm text-white/70 hover:text-white hover:underline pointer-events-auto"
         >
-          Train your signs →
+          Train →
         </Link>
       </header>
 

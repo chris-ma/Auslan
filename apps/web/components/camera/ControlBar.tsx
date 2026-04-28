@@ -108,7 +108,7 @@ export function ControlBar({
       {/* Camera selector */}
       {devices.length > 1 && (
         <Select value={activeDeviceId ?? ""} onValueChange={onSwitchCamera}>
-          <SelectTrigger className="w-44 h-9 text-sm" aria-label="Select camera">
+          <SelectTrigger className="w-32 sm:w-44 h-9 text-sm" aria-label="Select camera">
             <SelectValue placeholder="Select camera" />
           </SelectTrigger>
           <SelectContent>

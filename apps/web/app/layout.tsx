@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: "Auslan Live — Sign Language Recognition",
   description:
     "Real-time Australian Sign Language (Auslan) recognition with live subtitles. All processing happens in your browser — no video ever leaves your device.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

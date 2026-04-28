@@ -70,7 +70,7 @@ export default function GlossaryPage() {
                         >
                           {sign.type === "static" ? "Static" : "Dynamic"}
                         </Badge>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden />
+                        <Info className="h-3.5 w-3.5 text-muted-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" aria-hidden />
                       </div>
                     </div>
                   </TooltipTrigger>
